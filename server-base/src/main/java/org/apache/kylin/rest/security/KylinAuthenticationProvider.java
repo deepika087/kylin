@@ -55,6 +55,8 @@ public class KylinAuthenticationProvider implements AuthenticationProvider {
     private AuthenticationProvider authenticationProvider;
 
     private HashFunction hf = null;
+    MessageDigest md = null;
+    private final ThreadLocal<MessageDigest> messageDigestThreadLocal = new ThreadLocal<>();
 
     public KylinAuthenticationProvider(AuthenticationProvider authenticationProvider) {
         super();
@@ -67,8 +69,19 @@ public class KylinAuthenticationProvider implements AuthenticationProvider {
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
         Authentication authed = null;
         Cache userCache = cacheManager.getCache("UserCache");
-        byte[] hashKey = hf.hashString(authentication.getName() + authentication.getCredentials()).asBytes();
-        ByteArray userKey = new ByteArray(hashKey);
+        MessageDigest md = messageDigestThreadLocal.get();
+        if (md == null) {
+            try {
+                md = MessageDigest.getInstance("MD5");
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException("Failed to init Message Digest ", e);
+            }
+
+            messageDigestThreadLocal.set(md);
+        }
+        md.reset();
+        byte[] hashKey = md.digest((authentication.getName() + authentication.getCredentials()).getBytes());
+        String userKey = Arrays.toString(hashKey);
 
         Element authedUser = userCache.get(userKey);
         if (null != authedUser) {
